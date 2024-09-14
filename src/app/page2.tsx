@@ -7,15 +7,35 @@ import {
   useMutation,
   useQuery,
 } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/src/convex/_generated/api";
 import { Code } from "@/components/typography/code";
 import { Link } from "@/components/typography/link";
 import { SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import { StickyHeader } from "@/components/layout/sticky-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OnBoardingPage } from "@/components/on-boarding-page";
+import { useEffect, useState } from "react";
+import { useOnboardingStore } from "./store/onboardingStore";
+import Step1 from "./onboarding/step1/page";
 
 export default function Home() {
+  const { setUserId, setIsOnboardingComplete, isOnboardingComplete } = useOnboardingStore();
+  const { user_data } =
+    useQuery(api.userFunctions.user_data, {
+      count: 1,
+    }) ?? {};
+    const init_user = useMutation(api.userFunctions.init_user);
+    useEffect(() => {
+      if (user_data && user_data.length > 0) {
+        const userId = user_data[0].id;
+        const isOnboardingComplete = user_data[0].isOnboaded;
+  
+        setUserId(userId!);
+        setIsOnboardingComplete(isOnboardingComplete!);
+      } else {
+        void init_user();
+      }
+    }, [user_data, setUserId, setIsOnboardingComplete, init_user]);
   return (
     <>
       <StickyHeader className="px-4 py-2">
@@ -31,10 +51,19 @@ export default function Home() {
         {/* <h1 className="text-4xl font-extrabold my-8 text-center">
           Convex + Next.js + Clerk Auth
         </h1> */}
-        <Authenticated>
-          {/* <SignedInContent /> */}
-          <OnBoardingPage></OnBoardingPage>
+<Authenticated>
+          {isOnboardingComplete ? (
+            <p>Welcome to Foodbook.ai!</p>
+          ) : (
+            <Step1 />
+          // <OnBoardingPage></OnBoardingPage> 
+          )}
         </Authenticated>
+
+        {/* <Authenticated> */}
+          {/* <SignedInContent /> */}
+          {/* <OnBoardingPage></OnBoardingPage> */}
+        {/* </Authenticated> */}
         <Unauthenticated>
           <p>Click one of the buttons in the top right corner to sign in.</p>
         </Unauthenticated></>
@@ -62,6 +91,7 @@ function SignInAndSignUpButtons() {
 }
 
 function SignedInContent() {
+
   const { viewer, numbers, user } =
     useQuery(api.myFunctions.listNumbers, {
       count: 10,
@@ -70,11 +100,19 @@ function SignedInContent() {
     useQuery(api.myFunctions.listRestaurants, {
       count: 10,
     }) ?? {};
-
+    const { user_data } =
+    useQuery(api.userFunctions.user_data, {
+      count: 1,
+    }) ?? {};
+    const init_user = useMutation(api.userFunctions.init_user);
+    useEffect(() => {
+      void init_user();
+    }
+    , []);
 
   const addNumber = useMutation(api.myFunctions.addNumber);
 
-  if (viewer === undefined || numbers === undefined || restaurants === undefined) {
+  if ( viewer === undefined || numbers === undefined || restaurants === undefined) {
     return (
       <>
         <Skeleton className="h-5 w-full" />
@@ -86,7 +124,7 @@ function SignedInContent() {
 
   return (
     <>
-    {JSON.stringify(user?.tokenIdentifier)}
+    {JSON.stringify(user_data![0].id)}
       <p>Welcome {viewer ?? "N/A"}!</p>
       <p>
         Click the button below and open this page in another window - this data

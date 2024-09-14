@@ -54,25 +54,55 @@ export const listRestaurants = query({
 });
 
 
-export const addUser = mutation({
-  // Validators for arguments.
-  args: {
-    value: v.number(),
-  },
+// export const addUser = mutation({
+//   // Validators for arguments.
+//   args: {
+//     value: v.number(),
+//   },
 
-  // Mutation implementation.
-  handler: async (ctx, args) => {
-    //// Insert or modify documents in the database here.
-    //// Mutations can also read from the database like queries.
-    //// See https://docs.convex.dev/database/writing-data.
+//   // Mutation implementation.
+//   handler: async (ctx, args) => {
+//     //// Insert or modify documents in the database here.
+//     //// Mutations can also read from the database like queries.
+//     //// See https://docs.convex.dev/database/writing-data.
 
-    const id = await ctx.db.insert("users", { id: args.value });
+//     const id = await ctx.db.insert("users", { id: args.value });
 
-    // console.log("Added new document with id:", id);
-    // Optionally, return a value from your mutation.
-    // return id;
-  },
-});
+//     // console.log("Added new document with id:", id);
+//     // Optionally, return a value from your mutation.
+//     // return id;
+//   },
+// });
+
+// export const addUser = mutation({
+//   args: {
+//     value: v.number(),
+//   },
+
+//   handler: async (ctx, args) => {
+//     const id = await ctx.db.insert("users", { id: args.value });
+//     return id;
+//   },
+// });
+
+// export const updateUser = mutation({
+//   args: {
+//     id: v.string(),
+//     data: v.object({
+//       birthYear: v.optional(v.string()),
+//       username: v.optional(v.string()),
+//       gender: v.optional(v.string()),
+//       isRestaurantOwner: v.optional(v.boolean()),
+//       pseudoUsername: v.optional(v.string()),
+//       dietaryRestrictions: v.optional(v.array(v.string())),
+//       country: v.optional(v.string()),
+//     }),
+//   },
+
+//   handler: async (ctx, args) => {
+//     await ctx.db.patch("users", args.id);
+//   },
+// });
 
 
 // You can write data to the database via a mutation:

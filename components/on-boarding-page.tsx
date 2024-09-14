@@ -170,7 +170,7 @@ export function OnBoardingPage() {
   )
 }
 
-function ChevronsUpDownIcon(props) {
+function ChevronsUpDownIcon(props:any) {
   return (
     <svg
       {...props}
