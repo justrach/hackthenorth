@@ -1,0 +1,386 @@
+"use client";
+import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from '@/components/ui/switch';
+import { useRouter } from 'next/navigation';
+
+interface LoggedInPageProps {
+  userId: string;
+}
+
+export default function LoggedInPage({ userId }: LoggedInPageProps) {
+  const { user } = useUser();
+  const createUser = useMutation(api.userFunctions.createUser);
+  const updateUser = useMutation(api.userFunctions.updateUser);
+  const getUser = useQuery(api.userFunctions.getUserByUserID, { user_id: userId });
+  const createEvent = useMutation(api.userFunctions.createEvent);
+  const createMeetup = useMutation(api.userFunctions.createMeetup);
+  const getUserEvents = useQuery(api.userFunctions.getUserEvents);
+  const router = useRouter();
+
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [bio, setBio] = useState('');
+  const [interests, setInterests] = useState('');
+  const [newEventName, setNewEventName] = useState('');
+  const [newEventDescription, setNewEventDescription] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState<Id<"events"> | null>(null);
+
+  // New state for meetup creation
+  const [newMeetupName, setNewMeetupName] = useState('');
+  const [newMeetupDescription, setNewMeetupDescription] = useState('');
+  const [newMeetupTime, setNewMeetupTime] = useState('');
+  const [newMeetupLocation, setNewMeetupLocation] = useState('');
+  const [newMeetupMaxParticipants, setNewMeetupMaxParticipants] = useState('');
+  const [newMeetupIsPublic, setNewMeetupIsPublic] = useState(false);
+  const [newMeetupInvitedUsernames, setNewMeetupInvitedUsernames] = useState('');
+
+  useEffect(() => {
+    if (user && !getUser) {
+      createUser({
+        user_id: userId,
+        username: user.username || '',
+        name: user.fullName || '',
+        email: user.primaryEmailAddress?.emailAddress || '',
+        profilePictureUrl: user.imageUrl || '',
+        bio: '',
+        skills: [],
+        interests: [],
+        isOnboarded: false,
+      });
+    } else if (getUser && !getUser.isOnboarded) {
+      setIsOnboarding(true);
+    }
+  }, [user, getUser, createUser, userId]);
+
+  const handleFinishOnboarding = async () => {
+    try {
+      await updateUser({
+        bio,
+        interests: interests.split(',').map(i => i.trim()),
+        isOnboarded: true,
+      });
+      setIsOnboarding(false);
+    } catch (error) {
+      console.error('Error updating user:', error);
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    try {
+      await createEvent({
+        name: newEventName,
+        description: newEventDescription,
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
+        location: "TBD",
+      });
+      setNewEventName('');
+      setNewEventDescription('');
+    } catch (error) {
+      console.error('Error creating event:', error);
+    }
+  };
+
+  const handleCreateMeetup = async () => {
+    console.log("Create Meetup button clicked");
+    if (!selectedEventId) {
+      console.error("No event selected");
+      alert("Please select an event first");
+      return;
+    }
+  
+    if (!newMeetupName || !newMeetupDescription || !newMeetupTime || !newMeetupLocation) {
+      console.error("Missing required fields");
+      alert("Please fill in all required fields");
+      return;
+    }
+  
+    const confirmCreate = window.confirm("Are you sure you want to create this meetup?");
+    if (!confirmCreate) {
+      console.log("Meetup creation cancelled by user");
+      return;
+    }
+  
+    try {
+      console.log("Attempting to create meetup with data:", {
+        eventId: selectedEventId,
+        name: newMeetupName,
+        description: newMeetupDescription,
+        meetupTime: newMeetupTime,
+        location: newMeetupLocation,
+        maxParticipants: newMeetupMaxParticipants ? parseInt(newMeetupMaxParticipants) : undefined,
+        isPublic: newMeetupIsPublic,
+        invitedUsernames: newMeetupInvitedUsernames.split(',').map(username => username.trim()),
+      });
+  
+      const result = await createMeetup({
+        eventId: selectedEventId,
+        name: newMeetupName,
+        description: newMeetupDescription,
+        meetupTime: newMeetupTime,
+        location: newMeetupLocation,
+        maxParticipants: newMeetupMaxParticipants ? parseInt(newMeetupMaxParticipants) : undefined,
+        isPublic: newMeetupIsPublic,
+        invitedUsernames: newMeetupInvitedUsernames.split(',').map(username => username.trim()),
+      });
+  
+      console.log("Meetup created successfully:", result);
+      alert("Meetup created successfully!");
+  
+      // Reset form fields
+      setNewMeetupName('');
+      setNewMeetupDescription('');
+      setNewMeetupTime('');
+      setNewMeetupLocation('');
+      setNewMeetupMaxParticipants('');
+      setNewMeetupIsPublic(false);
+      setNewMeetupInvitedUsernames('');
+    } catch (error) {
+      console.error('Error creating meetup:', error);
+      alert(`Error creating meetup: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
+
+  if (isOnboarding) {
+    return (
+      <Card className="w-[350px] mx-auto mt-10">
+        <CardHeader>
+          <CardTitle>Welcome, {user.fullName}!</CardTitle>
+          <CardDescription>Let's finish setting up your profile</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                placeholder="Tell us about yourself"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="interests">Interests</Label>
+              <Input
+                id="interests"
+                placeholder="e.g. coding, music, travel (comma-separated)"
+                value={interests}
+                onChange={(e) => setInterests(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={handleFinishOnboarding}>Finish Setup</Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Welcome, {user.fullName}!</h1>
+      <p className="mb-4">Selected event: {selectedEventId ? getUserEvents?.find(e => e._id === selectedEventId)?.name : 'None'}</p>
+      <Tabs defaultValue="events">
+        <TabsList>
+          <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="meetups">Meetups</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="events">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Events</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {getUserEvents?.map(event => (
+                <div key={event._id} className="mb-2">
+                  <Button
+                    variant={selectedEventId === event._id ? "default" : "outline"}
+                    onClick={() => setSelectedEventId(event._id)}
+                  >
+                    {event.name}
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Create Event</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create a New Event</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="eventName">Event Name</Label>
+                      <Input
+                        id="eventName"
+                        value={newEventName}
+                        onChange={(e) => setNewEventName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="eventDescription">Event Description</Label>
+                      <Textarea
+                        id="eventDescription"
+                        value={newEventDescription}
+                        onChange={(e) => setNewEventDescription(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleCreateEvent}>Create Event</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="meetups">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meetups</CardTitle>
+              {selectedEventId && (
+                <CardDescription>
+                  Meetups for event: {getUserEvents?.find(e => e._id === selectedEventId)?.name}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              {/* Display meetups here */}
+            </CardContent>
+            <CardFooter>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button disabled={!selectedEventId}>Create Meetup</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Create a New Meetup</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="meetupName" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="meetupName"
+                        value={newMeetupName}
+                        onChange={(e) => setNewMeetupName(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="meetupDescription" className="text-right">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="meetupDescription"
+                        value={newMeetupDescription}
+                        onChange={(e) => setNewMeetupDescription(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="meetupTime" className="text-right">
+                        Time
+                      </Label>
+                      <Input
+                        id="meetupTime"
+                        type="datetime-local"
+                        value={newMeetupTime}
+                        onChange={(e) => setNewMeetupTime(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="meetupLocation" className="text-right">
+                        Location
+                      </Label>
+                      <Input
+                        id="meetupLocation"
+                        value={newMeetupLocation}
+                        onChange={(e) => setNewMeetupLocation(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="maxParticipants" className="text-right">
+                        Max Participants
+                      </Label>
+                      <Input
+                        id="maxParticipants"
+                        type="number"
+                        value={newMeetupMaxParticipants}
+                        onChange={(e) => setNewMeetupMaxParticipants(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="isPublic" className="text-right">
+                        Public Meetup
+                      </Label>
+                      <Switch
+                        id="isPublic"
+                        checked={newMeetupIsPublic}
+                        onCheckedChange={setNewMeetupIsPublic}
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="invitedUsernames" className="text-right">
+                        Invite Users
+                      </Label>
+                      <Input
+                        id="invitedUsernames"
+                        value={newMeetupInvitedUsernames}
+                        onChange={(e) => setNewMeetupInvitedUsernames(e.target.value)}
+                        placeholder="Comma-separated usernames"
+                        className="col-span-3"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="profile">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {getUser && (
+                <div>
+                  <p><strong>Bio:</strong> {getUser.bio}</p>
+                  <p><strong>Interests:</strong> {getUser.interests.join(', ')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
