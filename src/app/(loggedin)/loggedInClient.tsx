@@ -13,20 +13,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useConvexAuth } from "convex/react";
 
 interface LoggedInPageProps {
   userId: string;
 }
 
 export default function LoggedInPage({ userId }: LoggedInPageProps) {
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { isAuthenticated } = useConvexAuth();
+  const router = useRouter();
   const createUser = useMutation(api.userFunctions.createUser);
   const updateUser = useMutation(api.userFunctions.updateUser);
-  const getUser = useQuery(api.userFunctions.getUserByUserID, { user_id: userId });
+  const getUser = useQuery(api.userFunctions.getUserByUserID, isAuthenticated ? { user_id: userId } : "skip");
   const createEvent = useMutation(api.userFunctions.createEvent);
   const createMeetup = useMutation(api.userFunctions.createMeetup);
-  const getUserEvents = useQuery(api.userFunctions.getUserEvents);
-  const router = useRouter();
+  const getUserEvents = useQuery(api.userFunctions.getUserEvents, isAuthenticated ? undefined : "skip");
 
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [bio, setBio] = useState('');
@@ -34,8 +37,6 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
   const [newEventName, setNewEventName] = useState('');
   const [newEventDescription, setNewEventDescription] = useState('');
   const [selectedEventId, setSelectedEventId] = useState<Id<"events"> | null>(null);
-
-  // New state for meetup creation
   const [newMeetupName, setNewMeetupName] = useState('');
   const [newMeetupDescription, setNewMeetupDescription] = useState('');
   const [newMeetupTime, setNewMeetupTime] = useState('');
@@ -45,7 +46,13 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
   const [newMeetupInvitedUsernames, setNewMeetupInvitedUsernames] = useState('');
 
   useEffect(() => {
-    if (user && !getUser) {
+    if (isLoaded && !isSignedIn) {
+      router.push('/sign-in');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  useEffect(() => {
+    if (isAuthenticated && user && getUser === null) {
       createUser({
         user_id: userId,
         username: user.username || '',
@@ -60,7 +67,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
     } else if (getUser && !getUser.isOnboarded) {
       setIsOnboarding(true);
     }
-  }, [user, getUser, createUser, userId]);
+  }, [isAuthenticated, user, getUser, createUser, userId]);
 
   const handleFinishOnboarding = async () => {
     try {
@@ -92,27 +99,23 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
   };
 
   const handleCreateMeetup = async () => {
-    console.log("Create Meetup button clicked");
     if (!selectedEventId) {
-      console.error("No event selected");
       alert("Please select an event first");
       return;
     }
-  
+
     if (!newMeetupName || !newMeetupDescription || !newMeetupTime || !newMeetupLocation) {
-      console.error("Missing required fields");
       alert("Please fill in all required fields");
       return;
     }
-  
+
     const confirmCreate = window.confirm("Are you sure you want to create this meetup?");
     if (!confirmCreate) {
-      console.log("Meetup creation cancelled by user");
       return;
     }
-  
+
     try {
-      console.log("Attempting to create meetup with data:", {
+      await createMeetup({
         eventId: selectedEventId,
         name: newMeetupName,
         description: newMeetupDescription,
@@ -122,22 +125,9 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
         isPublic: newMeetupIsPublic,
         invitedUsernames: newMeetupInvitedUsernames.split(',').map(username => username.trim()),
       });
-  
-      const result = await createMeetup({
-        eventId: selectedEventId,
-        name: newMeetupName,
-        description: newMeetupDescription,
-        meetupTime: newMeetupTime,
-        location: newMeetupLocation,
-        maxParticipants: newMeetupMaxParticipants ? parseInt(newMeetupMaxParticipants) : undefined,
-        isPublic: newMeetupIsPublic,
-        invitedUsernames: newMeetupInvitedUsernames.split(',').map(username => username.trim()),
-      });
-  
-      console.log("Meetup created successfully:", result);
+
       alert("Meetup created successfully!");
-  
-      // Reset form fields
+
       setNewMeetupName('');
       setNewMeetupDescription('');
       setNewMeetupTime('');
@@ -151,7 +141,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
     }
   };
 
-  if (!user) {
+  if (!isLoaded || !isSignedIn || !isAuthenticated) {
     return <div>Loading...</div>;
   }
 
@@ -208,16 +198,29 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
               <CardTitle>Your Events</CardTitle>
             </CardHeader>
             <CardContent>
-              {getUserEvents?.map(event => (
-                <div key={event._id} className="mb-2">
-                  <Button
-                    variant={selectedEventId === event._id ? "default" : "outline"}
-                    onClick={() => setSelectedEventId(event._id)}
-                  >
-                    {event.name}
-                  </Button>
-                </div>
-              ))}
+              {getUserEvents === undefined ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    Unable to fetch your events. Please try refreshing the page or signing out and back in.
+                  </AlertDescription>
+                </Alert>
+              ) : getUserEvents === null ? (
+                <p>Loading events...</p>
+              ) : getUserEvents.length === 0 ? (
+                <p>You haven't created any events yet.</p>
+              ) : (
+                getUserEvents.map(event => (
+                  <div key={event._id} className="mb-2">
+                    <Button
+                      variant={selectedEventId === event._id ? "default" : "outline"}
+                      onClick={() => setSelectedEventId(event._id)}
+                    >
+                      {event.name}
+                    </Button>
+                  </div>
+                ))
+              )}
             </CardContent>
             <CardFooter>
               <Dialog>
@@ -245,8 +248,10 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
                         onChange={(e) => setNewEventDescription(e.target.value)}
                       />
                     </div>
-                    <Button onClick={handleCreateEvent}>Create Event</Button>
                   </div>
+                  <DialogFooter>
+                    <Button onClick={handleCreateEvent}>Create Event</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </CardFooter>
@@ -264,7 +269,8 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
               )}
             </CardHeader>
             <CardContent>
-              {/* Display meetups here */}
+              {/* Meetup list would go here */}
+              <p>No meetups created yet.</p>
             </CardContent>
             <CardFooter>
               <Dialog>

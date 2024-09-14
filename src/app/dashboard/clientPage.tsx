@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +26,9 @@ interface Meetup {
 
 export default function DashboardPage({ userId }: { userId: string }) {
   const { user } = useUser();
+  const { isAuthenticated } = useConvexAuth();
   const { toast } = useToast();
-  const getUserEvents = useQuery(api.userFunctions.getUserEvents);
+  const getUserEvents = useQuery(api.userFunctions.getUserEvents, isAuthenticated ? undefined : "skip");
   const createEvent = useMutation(api.userFunctions.createEvent);
   const joinEventWithCode = useMutation(api.userFunctions.joinEventWithCode);
   const createMeetup = useMutation(api.userFunctions.createMeetup);
@@ -37,7 +38,7 @@ export default function DashboardPage({ userId }: { userId: string }) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedMeetup, setSelectedMeetup] = useState<Meetup | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const userProfiles = useQuery(api.userFunctions.getUserProfiles);
+  const userProfiles = useQuery(api.userFunctions.getUserProfiles, isAuthenticated ? undefined : "skip");
 
   const [newEventName, setNewEventName] = useState('');
   const [newEventDescription, setNewEventDescription] = useState('');
@@ -49,34 +50,33 @@ export default function DashboardPage({ userId }: { userId: string }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const personalMeetups = useQuery(api.userFunctions.getPersonalMeetupsByEventId, 
-    selectedEvent && user ? { eventId: selectedEvent._id } : "skip"
+    isAuthenticated && selectedEvent && user ? { eventId: selectedEvent._id } : "skip"
   );
 
   const globalMeetups = useQuery(api.userFunctions.getGlobalMeetupsByEventId, 
-    selectedEvent ? { eventId: selectedEvent._id } : "skip"
+    isAuthenticated && selectedEvent ? { eventId: selectedEvent._id } : "skip"
   );
 
   const getMeetupChatId = useQuery(api.userFunctions.getMeetupChatId, 
-    selectedMeetup ? { meetupId: selectedMeetup._id } : "skip"
+    isAuthenticated && selectedMeetup ? { meetupId: selectedMeetup._id } : "skip"
   );
 
   const getChatMessages = useQuery(api.userFunctions.getMeetupChatMessages, 
-    getMeetupChatId ? { meetupChatId: getMeetupChatId } : "skip"
+    isAuthenticated && getMeetupChatId ? { meetupChatId: getMeetupChatId } : "skip"
   );
+
   useEffect(() => {
-    // Prevent zooming on double-tap
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length > 1) {
         e.preventDefault();
       }
     };
-
     document.addEventListener('touchstart', handleTouchStart, { passive: false });
-
     return () => {
       document.removeEventListener('touchstart', handleTouchStart);
     };
   }, []);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
@@ -107,6 +107,11 @@ export default function DashboardPage({ userId }: { userId: string }) {
         scrollToBottom();
       } catch (error) {
         console.error('Error sending message:', error);
+        toast({
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive",
+        });
       }
     }
   };
@@ -122,10 +127,17 @@ export default function DashboardPage({ userId }: { userId: string }) {
           messageId: msg._id, 
           status: "delivered",
           user_id: userId
-        }).catch(error => console.error('Error updating message status:', error));
+        }).catch(error => {
+          console.error('Error updating message status:', error);
+          toast({
+            title: "Error",
+            description: "Failed to update message status.",
+            variant: "destructive",
+          });
+        });
       }
     });
-  }, [getChatMessages, updateMessageStatus, userId]);
+  }, [getChatMessages, updateMessageStatus, userId, toast]);
 
   const handleCreateEvent = async () => {
     try {
@@ -206,7 +218,7 @@ export default function DashboardPage({ userId }: { userId: string }) {
     return null;
   };
 
-  if (!user) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  if (!isAuthenticated || !user) return <div className="flex items-center justify-center h-screen">Loading...</div>;
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
@@ -339,74 +351,74 @@ export default function DashboardPage({ userId }: { userId: string }) {
                           <div className={`rounded-lg p-3 ${message.senderId === user.id ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200'}`}>
                             {message.senderId !== user.id && (
                               <p className="text-xs font-semibold mb-1 text-gray-600">
-                                {userProfiles?.find(profile => profile.user_id === message.senderId)?.username || 'Unknown User'}
-                              </p>
-                            )}
-                            <p className={`text-sm ${message.senderId === user.id ? 'text-white' : 'text-gray-800'}`}>{message.content}</p>
-                          </div>
-                          <div className={`flex items-center mt-1 space-x-2 ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'}`}>
-                            <p className="text-xs text-gray-500">{format(new Date(message.timestamp), 'HH:mm')}</p>
-                            <MessageStatus message={message} />
-                          </div>
+                              {userProfiles?.find(profile => profile.user_id === message.senderId)?.username || 'Unknown User'}
+                            </p>
+                          )}
+                          <p className={`text-sm ${message.senderId === user.id ? 'text-white' : 'text-gray-800'}`}>{message.content}</p>
+                        </div>
+                        <div className={`flex items-center mt-1 space-x-2 ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <p className="text-xs text-gray-500">{format(new Date(message.timestamp), 'HH:mm')}</p>
+                          <MessageStatus message={message} />
                         </div>
                       </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </ScrollArea>
+              <div className="p-4 bg-white border-t border-gray-200">
+                <form onSubmit={handleSendMessage} className="flex space-x-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="submit" size="icon">
+                    <Send size={18} />
+                  </Button>
+                </form>
+              </div>
+            </>
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              {selectedEvent ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button><Plus className="mr-2" />Create Meetup</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create a New Meetup</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label htmlFor="meetupName">Meetup Name</label>
+                        <Input
+                          id="meetupName"
+                          value={newMeetupName}
+                          onChange={(e) => setNewMeetupName(e.target.value)}
+                        />
                       </div>
-  ))}
-  <div ref={messagesEndRef} />
-</ScrollArea>
-<div className="p-4 bg-white border-t border-gray-200">
-  <form onSubmit={handleSendMessage} className="flex space-x-2">
-    <Input
-      value={newMessage}
-      onChange={(e) => setNewMessage(e.target.value)}
-      className="flex-1"
-    />
-    <Button type="submit" size="icon">
-      <Send size={18} />
-    </Button>
-  </form>
-</div>
-</>
-) : (
-<div className="h-full flex items-center justify-center">
-  {selectedEvent ? (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button><Plus className="mr-2" />Create Meetup</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create a New Meetup</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="meetupName">Meetup Name</label>
-            <Input
-              id="meetupName"
-              value={newMeetupName}
-              onChange={(e) => setNewMeetupName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="meetupDescription">Meetup Description</label>
-            <Input
-              id="meetupDescription"
-              value={newMeetupDescription}
-              onChange={(e) => setNewMeetupDescription(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+                      <div className="space-y-2">
+                        <label htmlFor="meetupDescription">Meetup Description</label>
+                        <Input
+                          id="meetupDescription"
+                          value={newMeetupDescription}
+                          onChange={(e) => setNewMeetupDescription(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <p className="text-gray-500">Select an event to view meetups or create a new one</p>
+              )}
+            </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
-  ) : (
-    <p className="text-gray-500">Select an event to view meetups or create a new one</p>
-  )}
-</div>
-)}
-</div>
-</div>
-</div>
-</div>
+      </div>
+    </div>
+  </div>
 );
 }
