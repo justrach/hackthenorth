@@ -41,10 +41,11 @@ export default defineSchema({
     name: v.string(),
     description: v.string(),
     meetupTime: v.string(),
-    locationId: v.id("locations"),  // Changed from location
+    locationId: v.optional(v.id("locations")),  // Changed to optional
     creatorId: v.id("users"),
     participantIds: v.array(v.string()),
     status: v.string(),
+    location: v.optional(v.string()),  // New field
     invitedUsernames: v.array(v.string()),
     createdAt: v.string(),
     maxParticipants: v.optional(v.number()),

@@ -384,7 +384,8 @@ export const createMeetup = mutation({
     name: v.string(),
     description: v.string(),
     meetupTime: v.string(),
-    location: v.string(),
+    locationName: v.string(),
+    locationUrl: v.optional(v.string()),
     maxParticipants: v.optional(v.number()),
     isPublic: v.boolean(),
     invitedUsernames: v.array(v.string()),
@@ -413,18 +414,31 @@ export const createMeetup = mutation({
       }
     }
     
+    // Create the location
+    const locationId = await ctx.db.insert("locations", {
+      name: args.locationName,
+      url: args.locationUrl,
+    });
+    
     const meetupId = await ctx.db.insert("meetups", {
-      ...args,
+      eventId: args.eventId,
+      name: args.name,
+      description: args.description,
+      meetupTime: args.meetupTime,
+      locationId,
       creatorId: user._id,
       participantIds,
       status: "pending",
       createdAt: new Date().toISOString(),
+      maxParticipants: args.maxParticipants,
+      isPublic: args.isPublic,
+      invitedUsernames: args.invitedUsernames,
     });
 
     // Create meetup chat
     await ctx.db.insert("meetupChats", {
       meetupId,
-      name: args.name, // Use the same name as the meetup
+      name: args.name,
       description: args.description,
       participantIds,
       createdAt: new Date().toISOString(),
