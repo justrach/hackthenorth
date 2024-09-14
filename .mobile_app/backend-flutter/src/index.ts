@@ -21,7 +21,7 @@ app.post('/send-email', async (c) => {
       from: 'HackTheNorth <admin@omni.boopr.xyz>',
       to: [email],
       subject: 'Invitation to try excus.us',
-      html: `<p>Dear ${firstName},</p><p>You are now invited to try out https://excus.us! The code for hack the north is <strong>excus</strong>.</p><p>Happy hacking!</p>`
+      html: `<p>Dear ${firstName},</p><p>You are now invited to try out <a href="https://excus.us">https://excus.us</a>! The code for hack the north is <strong>htn</strong>.</p><p>Happy hacking!</p>`
     })
 
     if (error) {
