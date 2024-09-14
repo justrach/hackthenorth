@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "fastapi-rag-project"
+version = "0.1.0"
+description = "A FastAPI project for RAG with Chroma and OpenAI embeddings"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.103.0"
+uvicorn = "^0.23.0"
+chromadb = "^0.4.7"
+openai = "^0.28.0"
+sqlalchemy = "^2.0.20"
+numpy = "^1.25.2"
+pydantic = "^2.3.0"
+python-dotenv = "^1.0.0"
+httpx = "^0.24.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4.0"
+black = "^23.7.0"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

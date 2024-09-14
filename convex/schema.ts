@@ -31,21 +31,25 @@ export default defineSchema({
     inviteCodes: v.array(v.string()),
   }),
 
+  locations: defineTable({
+    name: v.string(),
+    url: v.optional(v.string()),
+  }),
+
   meetups: defineTable({
     eventId: v.id("events"),
     name: v.string(),
     description: v.string(),
     meetupTime: v.string(),
-    location: v.string(),
+    locationId: v.id("locations"),  // Changed from location
     creatorId: v.id("users"),
     participantIds: v.array(v.string()),
     status: v.string(),
-        invitedUsernames: v.array(v.string()), // Add this line
+    invitedUsernames: v.array(v.string()),
     createdAt: v.string(),
     maxParticipants: v.optional(v.number()),
-    isPublic: v.boolean(),  // Add this line
+    isPublic: v.boolean(),
   }).index("by_eventId", ["eventId"]),
-
   meetupChats: defineTable({
     meetupId: v.id("meetups"),
     name: v.string(),
@@ -58,10 +62,11 @@ export default defineSchema({
   messages: defineTable({
     content: v.string(),
     meetupChatId: v.id("meetupChats"),
-    senderId: v.string(),  // Changed from v.id("users") to v.string()
+    senderId: v.string(),
     timestamp: v.string(),
+    pollId: v.optional(v.id("polls")), // Add this line
   }).index("by_meetupChatId", ["meetupChatId"]),
-
+  
   messageStatuses: defineTable({
     messageId: v.id("messages"),
     userId: v.string(),
@@ -75,4 +80,18 @@ export default defineSchema({
     eventId: v.id("events"),
     timestamp: v.string(),
   }),
+  polls: defineTable({
+    messageId: v.id("messages"),
+    question: v.string(),
+    options: v.array(v.string()),
+    votes: v.array(v.object({
+      optionIndex: v.number(),
+      userId: v.string(),
+    })),
+    createdAt: v.string(),
+    expiresAt: v.optional(v.string()),
+  }).index("by_messageId", ["messageId"]),
+  
 });
+
+

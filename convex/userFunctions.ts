@@ -67,6 +67,39 @@ export const getUser = query({
     return await ctx.db.get(args.userId);
   },
 });
+
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    return rows.map((row) => row._id);
+  },
+});
+
+// export const listUsersWithEmails = query({
+//   args: {},
+//   handler: async (ctx) => {
+//     const users = await ctx.db.query("users").collect();
+//     return users.map((user) => ({
+//       id: user._id,
+//       email: user.email,
+//     }));
+//   },
+// });
+
+export const listUsersWithEmails = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users.map((user) => ({
+      id: user._id,
+      email: user.email,
+      bio: user.bio,
+      interests: user.interests,
+    }));
+  },
+});
+
 export const getUserEvents = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
