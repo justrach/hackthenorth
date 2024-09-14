@@ -1,38 +1,80 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { useRouter } from 'next/navigation';
-import MeetupList from '@/components/(meetups)/meetupList';
-import { Calendar, MapPin } from 'lucide-react';
+import { Check, CheckCheck, Send, MessageCircle, Plus, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
+import { Id } from '@/convex/_generated/dataModel';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
+// Add these interfaces at the top of your file
+interface Event {
+    _id: Id<"events">;
+    name: string;
+    // ... other properties
+  }
+  interface Meetup {
+    _id: Id<"meetups">;
+    name: string;
+    // ... other properties
+  }
+  
 export default function Dashboard() {
   const { user } = useUser();
   const { toast } = useToast();
-  const router = useRouter();
   const getUserEvents = useQuery(api.userFunctions.getUserEvents);
   const createEvent = useMutation(api.userFunctions.createEvent);
   const joinEventWithCode = useMutation(api.userFunctions.joinEventWithCode);
   const createMeetup = useMutation(api.userFunctions.createMeetup);
+  const createMeetupChat = useMutation(api.userFunctions.createMeetupChat);
+  const createMessage = useMutation(api.userFunctions.createMessage);
+  const updateMessageStatus = useMutation(api.userFunctions.updateMessageStatus);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedMeetup, setSelectedMeetup] = useState<Meetup | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const userProfiles = useQuery(api.userFunctions.getUserProfiles);
 
   const [newEventName, setNewEventName] = useState('');
   const [newEventDescription, setNewEventDescription] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [newMeetupName, setNewMeetupName] = useState('');
   const [newMeetupDescription, setNewMeetupDescription] = useState('');
+  const [newMessage, setNewMessage] = useState('');
 
-  const singleEvent = getUserEvents && getUserEvents.length === 1 ? getUserEvents[0] : null;
+
   const meetups = useQuery(api.userFunctions.getMeetupsByEventId, 
-    singleEvent ? { eventId: singleEvent._id } : "skip"
+    selectedEvent ? { eventId: selectedEvent._id } : "skip"
   );
+
+  const getMeetupChatId = useQuery(api.userFunctions.getMeetupChatId, 
+    selectedMeetup ? { meetupId: selectedMeetup._id } : "skip"
+  );
+
+  const getChatMessages = useQuery(api.userFunctions.getMeetupChatMessages, 
+    getMeetupChatId ? { meetupChatId: getMeetupChatId } : "skip"
+  );
+
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+
+    getChatMessages?.forEach(msg => {
+      if (msg.needsDeliveryUpdate) {
+        updateMessageStatus({ 
+          messageId: msg._id, 
+          status: "delivered",
+          user_id: user?.id || ''
+        }).catch(error => console.error('Error updating message status:', error));
+      }
+    });
+  }, [getChatMessages, updateMessageStatus, user]);
 
   const handleCreateEvent = async () => {
     try {
@@ -45,10 +87,7 @@ export default function Dashboard() {
       });
       setNewEventName('');
       setNewEventDescription('');
-      toast({
-        title: "Success",
-        description: "Event created successfully.",
-      });
+      toast({ title: "Success", description: "Event created successfully." });
     } catch (error) {
       console.error('Error creating event:', error);
       toast({
@@ -63,10 +102,7 @@ export default function Dashboard() {
     try {
       await joinEventWithCode({ inviteCode });
       setInviteCode('');
-      toast({
-        title: "Success",
-        description: "You've successfully joined the event.",
-      });
+      toast({ title: "Success", description: "You've successfully joined the event." });
     } catch (error) {
       console.error('Error joining event:', error);
       toast({
@@ -78,22 +114,24 @@ export default function Dashboard() {
   };
 
   const handleCreateMeetup = async () => {
-    if (!singleEvent) return;
+    if (!selectedEvent) return;
     try {
       const newMeetupId = await createMeetup({
-        eventId: singleEvent._id,
+        eventId: selectedEvent._id,
         name: newMeetupName,
         description: newMeetupDescription,
         meetupTime: new Date().toISOString(),
         location: "TBD",
       });
+      
+      await createMeetupChat({
+        meetupId: newMeetupId,
+        name: `Chat for ${newMeetupName}`,
+      });
+
       setNewMeetupName('');
       setNewMeetupDescription('');
-      toast({
-        title: "Success",
-        description: "Meetup created successfully.",
-      });
-      router.push(`/chat/${newMeetupId}`);
+      toast({ title: "Success", description: "Meetup created successfully." });
     } catch (error) {
       console.error('Error creating meetup:', error);
       toast({
@@ -104,107 +142,81 @@ export default function Dashboard() {
     }
   };
 
-  const handleMeetupClick = (meetupId: Id<"meetups">) => {
-    router.push(`/chat/${meetupId}`);
+  const handleSendMessage = async (e:any) => {
+    e.preventDefault();
+    if (newMessage.trim() && getMeetupChatId && user) {
+      try {
+        await createMessage({
+          user_id: user.id,
+          content: newMessage,
+          meetupChatId: getMeetupChatId,
+        });
+        setNewMessage('');
+        // Scroll to bottom after sending a message
+        setTimeout(() => {
+          if (scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+          }
+        }, 0);
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
+    }
+  };
+  const MessageStatus = ({ message }:any) => {
+    if (message.senderId === user?.id) {
+      if (message.readAt) {
+        return <CheckCheck className="text-blue-500" size={16} />;
+      } else if (message.deliveredAt) {
+        return <Check className="text-gray-500" size={16} />;
+      }
+    }
+    return null;
   };
 
   if (!user) return <div>Loading...</div>;
 
-
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Welcome, {user.fullName}!</h1>
-      <Tabs defaultValue="events">
-        <TabsList>
-          <TabsTrigger value="events">My Events</TabsTrigger>
-          <TabsTrigger value="join">Join Event</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="events">
-          {singleEvent ? (
-            <>
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle className="text-3xl">{singleEvent.name}</CardTitle>
-                  <CardDescription className="text-xl">{singleEvent.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center mb-2">
-                    <Calendar className="mr-2" />
-                    <span>{new Date(singleEvent.startDate).toLocaleDateString()} - {new Date(singleEvent.endDate).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="mr-2" />
-                    <span>{singleEvent.location}</span>
-                  </div>
-                </CardContent>
-              </Card>
-              <MeetupList 
-                eventId={singleEvent._id} 
-                meetups={meetups} 
-                onMeetupClick={handleMeetupClick} 
-              />
-            </>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Events</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {getUserEvents?.map(event => (
-                  <div key={event._id} className="mb-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full text-left"
-                      onClick={() => router.push(`/dashboard/${event._id}`)}
-                    >
-                      {event.name}
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-              <CardFooter>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>Create Event</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create a New Event</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label htmlFor="eventName">Event Name</label>
-                        <Input
-                          id="eventName"
-                          value={newEventName}
-                          onChange={(e) => setNewEventName(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label htmlFor="eventDescription">Event Description</label>
-                        <Input
-                          id="eventDescription"
-                          value={newEventDescription}
-                          onChange={(e) => setNewEventDescription(e.target.value)}
-                        />
-                      </div>
-                      <Button onClick={handleCreateEvent}>Create Event</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </CardFooter>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="join">
-          <Card>
-            <CardHeader>
-              <CardTitle>Join an Event</CardTitle>
-              <CardDescription>Enter an invite code to join a new event</CardDescription>
-            </CardHeader>
-            <CardContent>
+    <div className="flex h-screen bg-gray-100">
+      {/* Left Panel: Events & Meetups */}
+      <div className="w-1/4 bg-white border-r border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-xl font-semibold">Events & Meetups</h2>
+        </div>
+        <ScrollArea className="flex-grow">
+          {getUserEvents?.map((event) => (
+            <div key={event._id} className="p-2">
+              <Button
+                variant={event._id === selectedEvent?._id ? "secondary" : "ghost"}
+                className="w-full justify-start text-left"
+                onClick={() => setSelectedEvent(event)}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {event.name}
+              </Button>
+              {event._id === selectedEvent?._id && meetups?.map((meetup) => (
+                <Button
+                  key={meetup._id}
+                  variant={meetup._id === selectedMeetup?._id ? "secondary" : "ghost"}
+                  className="w-full justify-start pl-8 text-left mt-1"
+                  onClick={() => setSelectedMeetup(meetup)}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  {meetup.name}
+                </Button>
+              ))}
+            </div>
+          ))}
+        </ScrollArea>
+        <div className="p-4 border-t border-gray-200">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="w-full"><Plus className="mr-2" />Join Event</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Join an Event</DialogTitle>
+              </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label htmlFor="inviteCode">Invite Code</label>
@@ -217,10 +229,105 @@ export default function Dashboard() {
                 </div>
                 <Button onClick={handleJoinEvent}>Join Event</Button>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Right Panel: Chat or Event/Meetup Details */}
+      <div className="flex-1 flex flex-col">
+        <div className="p-4 bg-white border-b border-gray-200">
+          <h1 className="text-2xl font-bold">
+            {selectedMeetup ? `${selectedMeetup.name} Chat` : (selectedEvent ? selectedEvent.name : 'Select an Event or Meetup')}
+          </h1>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {selectedMeetup ? (
+            <div className="h-full flex flex-col">
+              <div className="flex-1 p-4 overflow-auto" ref={scrollAreaRef}>
+                {getChatMessages?.slice().reverse().map((message) => (
+                  <div key={message._id} className={`flex ${message.senderId === user.id ? 'justify-end' : 'justify-start'} mb-4`}>
+                    <div className={`flex ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%]`}>
+                      {message.senderId !== user.id && (
+                        <Avatar className="w-8 h-8 mr-2">
+                          <AvatarImage 
+                            src={userProfiles?.find(profile => profile.user_id === message.senderId)?.profilePictureUrl || ''} 
+                            alt={message.senderId} 
+                          />
+                          <AvatarFallback>{message.senderId.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div className={`flex flex-col ${message.senderId === user.id ? 'items-end' : 'items-start'}`}>
+                        <div className={`rounded-lg p-3 ${message.senderId === user.id ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200'}`}>
+                          {message.senderId !== user.id && (
+                            <p className="text-xs font-semibold mb-1 text-gray-600">
+                              {userProfiles?.find(profile => profile.user_id === message.senderId)?.username || 'Unknown User'}
+                            </p>
+                          )}
+                          <p className={`text-sm ${message.senderId === user.id ? 'text-white' : 'text-gray-800'}`}>{message.content}</p>
+                        </div>
+                        <div className={`flex items-center mt-1 space-x-2 ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <p className="text-xs text-gray-500">{format(new Date(message.timestamp), 'HH:mm')}</p>
+                          <MessageStatus message={message} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 bg-white border-t border-gray-200">
+                <form onSubmit={handleSendMessage} className="flex space-x-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1"
+                  />
+                  <Button type="submit" size="icon">
+                    <Send size={18} />
+                  </Button>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              {selectedEvent ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button><Plus className="mr-2" />Create Meetup</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create a New Meetup</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label htmlFor="meetupName">Meetup Name</label>
+                        <Input
+                          id="meetupName"
+                          value={newMeetupName}
+                          onChange={(e) => setNewMeetupName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor="meetupDescription">Meetup Description</label>
+                        <Input
+                          id="meetupDescription"
+                          value={newMeetupDescription}
+                          onChange={(e) => setNewMeetupDescription(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <p className="text-gray-500">Select an event to view meetups or create a new one</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

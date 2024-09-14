@@ -245,7 +245,20 @@ export const generateInviteCode = mutation({
     return newCode;
   },
 });
-
+export const getUserProfiles = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db
+      .query('users')
+      .collect();
+    
+    return users.map(user => ({
+      user_id: user.user_id,
+      username: user.username,
+      profilePictureUrl: user.profilePictureUrl
+    }));
+  },
+});
 export const joinEventWithCode = mutation({
   args: { inviteCode: v.string() },
   handler: async (ctx, args) => {

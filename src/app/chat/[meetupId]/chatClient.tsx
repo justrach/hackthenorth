@@ -10,21 +10,24 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/componen
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Id } from '@/convex/_generated/dataModel';
-import { Check, CheckCheck, Send, MessageCircle } from 'lucide-react';
+import { Check, CheckCheck, Send, MessageCircle, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUser } from '@clerk/nextjs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function ChatPage() {
   const { user } = useUser();
   const router = useRouter();
   const params = useParams();
   const meetupId = params.meetupId as Id<"meetups">;
-  
+  const { toast } = useToast();
+  const createMeetupChat = useMutation(api.userFunctions.createMeetupChat); 
   const getUserEvents = useQuery(api.userFunctions.getUserEvents);
-  const getMeetups = useQuery(api.userFunctions.getMeetupsByEventId, 
-    getUserEvents && getUserEvents.length > 0 ? { eventId: getUserEvents[0]._id } : "skip"
-  );
   const getMeetup = useQuery(api.userFunctions.getMeetup, { meetupId });
+  const getMeetups = useQuery(api.userFunctions.getMeetupsByEventId, 
+    getMeetup ? { eventId: getMeetup.eventId } : "skip"
+  );
   const getMeetupChatId = useQuery(api.userFunctions.getMeetupChatId, { meetupId });
   const getMeetupChat = useQuery(api.userFunctions.getMeetupChat, 
     getMeetupChatId ? { meetupChatId: getMeetupChatId } : "skip"
@@ -35,8 +38,11 @@ export default function ChatPage() {
   
   const createMessage = useMutation(api.userFunctions.createMessage);
   const updateMessageStatus = useMutation(api.userFunctions.updateMessageStatus);
+  const createMeetup = useMutation(api.userFunctions.createMeetup);
 
   const [newMessage, setNewMessage] = useState('');
+  const [newMeetupName, setNewMeetupName] = useState('');
+  const [newMeetupDescription, setNewMeetupDescription] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -87,6 +93,40 @@ export default function ChatPage() {
     }
   };
 
+  const handleCreateMeetup = async () => {
+    if (!getMeetup) return;
+    try {
+      const newMeetupId = await createMeetup({
+        eventId: getMeetup.eventId,
+        name: newMeetupName,
+        description: newMeetupDescription,
+        meetupTime: new Date().toISOString(),
+        location: "TBD",
+      });
+      
+    //   Create the meetup chat immediately after creating the meetup
+      const newChatId = await createMeetupChat({
+        meetupId: newMeetupId,
+        name: `Chat for ${newMeetupName}`,
+      });
+  
+      setNewMeetupName('');
+      setNewMeetupDescription('');
+      toast({
+        title: "Success",
+        description: "Meetup and chat created successfully.",
+      });
+      router.push(`/chat/${newMeetupId}`);
+    } catch (error) {
+      console.error('Error creating meetup:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create meetup. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const MessageStatus = ({ message }: { message: any }) => {
     if (message.senderId === user?.id) {
       if (message.readAt) {
@@ -108,7 +148,7 @@ export default function ChatPage() {
           <CardTitle>Meetups</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[calc(100vh-8rem)]">
+          <ScrollArea className="h-[calc(100vh-12rem)]">
             {getMeetups?.map((meetup) => (
               <Button
                 key={meetup._id}
@@ -122,6 +162,37 @@ export default function ChatPage() {
             ))}
           </ScrollArea>
         </CardContent>
+        <CardFooter>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="w-full"><Plus className="mr-2" />Create Meetup</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a New Meetup</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="meetupName">Meetup Name</label>
+                  <Input
+                    id="meetupName"
+                    value={newMeetupName}
+                    onChange={(e) => setNewMeetupName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="meetupDescription">Meetup Description</label>
+                  <Input
+                    id="meetupDescription"
+                    value={newMeetupDescription}
+                    onChange={(e) => setNewMeetupDescription(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardFooter>
       </Card>
 
       {/* Chat Window */}
