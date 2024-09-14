@@ -38,10 +38,13 @@ export default defineSchema({
     meetupTime: v.string(),
     location: v.string(),
     creatorId: v.id("users"),
-    participantIds: v.array(v.string()),  // Change this line
+    participantIds: v.array(v.string()),
     status: v.string(),
+        invitedUsernames: v.array(v.string()), // Add this line
+ 
     createdAt: v.string(),
     maxParticipants: v.optional(v.number()),
+    isPublic: v.boolean(),  // Add this line
   }).index("by_eventId", ["eventId"]),
 
   meetupChats: defineTable({

@@ -274,15 +274,18 @@ export const getPersonalMeetupsByEventId = query({
     
     if (!user) throw new Error("User not found");
 
-    return await ctx.db
+    const meetups = await ctx.db
       .query("meetups")
       .filter((q) => 
         q.and(
           q.eq(q.field("eventId"), args.eventId),
-          q.eq(q.field("participantIds"), [user.user_id])
+          q.eq(q.field("isPublic"), false)
         )
       )
       .collect();
+
+    // Filter meetups where the user is a participant
+    return meetups.filter(meetup => meetup.participantIds.includes(user.user_id));
   },
 });
 
@@ -291,20 +294,13 @@ export const getGlobalMeetupsByEventId = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    
-    const user = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("id"), identity.tokenIdentifier))
-      .first();
-    
-    if (!user) throw new Error("User not found");
 
     return await ctx.db
       .query("meetups")
       .filter((q) => 
         q.and(
           q.eq(q.field("eventId"), args.eventId),
-          q.neq(q.field("participantIds"), [user.user_id])
+          q.eq(q.field("isPublic"), true)
         )
       )
       .collect();
@@ -357,7 +353,8 @@ export const createMeetup = mutation({
     meetupTime: v.string(),
     location: v.string(),
     maxParticipants: v.optional(v.number()),
-    invitedUsernames: v.optional(v.array(v.string())),
+    isPublic: v.boolean(),
+    invitedUsernames: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -370,28 +367,38 @@ export const createMeetup = mutation({
     
     if (!user) throw new Error("User not found");
     
-    const participantIds = [user._id];
+    const participantIds = [user.user_id];
 
     // Add invited users
-    if (args.invitedUsernames) {
-      for (const username of args.invitedUsernames) {
-        const invitedUser = await ctx.db
-          .query("users")
-          .withIndex("by_username", (q) => q.eq("username", username))
-          .first();
-        if (invitedUser) {
-          participantIds.push(invitedUser._id);
-        }
+    for (const username of args.invitedUsernames) {
+      const invitedUser = await ctx.db
+        .query("users")
+        .withIndex("by_username", (q) => q.eq("username", username))
+        .first();
+      if (invitedUser) {
+        participantIds.push(invitedUser.user_id);
       }
     }
     
-    return await ctx.db.insert("meetups", {
+    const meetupId = await ctx.db.insert("meetups", {
       ...args,
       creatorId: user._id,
       participantIds,
       status: "pending",
       createdAt: new Date().toISOString(),
     });
+
+    // Create meetup chat
+    await ctx.db.insert("meetupChats", {
+      meetupId,
+      name: args.name, // Use the same name as the meetup
+      description: args.description,
+      participantIds,
+      createdAt: new Date().toISOString(),
+      lastMessageAt: new Date().toISOString(),
+    });
+
+    return meetupId;
   },
 });
 
