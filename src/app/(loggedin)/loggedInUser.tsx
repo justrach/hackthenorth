@@ -49,7 +49,6 @@ export default function NewUserOnboarding({ userId }: { userId: string }) {
           });
         }
       } else if (getUser && getUser.isOnboarded) {
-        // User is already onboarded, redirect to main app
         router.push('/dashboard');
       }
       setIsLoading(false);
@@ -69,6 +68,7 @@ export default function NewUserOnboarding({ userId }: { userId: string }) {
         title: "Profile Updated",
         description: "Your profile has been successfully set up.",
       });
+      router.push('/dashboard');
     } catch (error) {
       console.error('Error updating user:', error);
       toast({
@@ -97,72 +97,73 @@ export default function NewUserOnboarding({ userId }: { userId: string }) {
     }
   };
 
-  if (isLoading || !user) return <div>Loading...</div>;
-
-  if (getUser && getUser.isOnboarded) {
-    return (
-      <Card className="w-full max-w-md mx-auto mt-10">
-        <CardHeader>
-          <CardTitle>Join an Event</CardTitle>
-          <CardDescription>Enter your invite code to join an event</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="inviteCode">Invite Code</Label>
-              <Input
-                id="inviteCode"
-                placeholder="Enter your invite code"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button onClick={handleJoinEvent} className="w-full">Join Event</Button>
-        </CardFooter>
-      </Card>
-    );
-  }
+  if (isLoading || !user) return <div className="flex justify-center items-center h-screen">Loading...</div>;
 
   return (
-    <div className="container mx-auto p-4 max-w-md">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Welcome to EventChat!</CardTitle>
-          <CardDescription>Let's set up your profile</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                placeholder="Tell us about yourself"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="interests">Interests</Label>
-              <Input
-                id="interests"
-                placeholder="e.g. coding, music, travel (comma-separated)"
-                value={interests}
-                onChange={(e) => setInterests(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            onClick={handleFinishOnboarding}
-            className="w-full"
-          >
-            Finish Setup
-          </Button>
-        </CardFooter>
+    <div className="flex justify-center items-center min-h-screen p-4">
+      <Card className="w-full max-w-md">
+        {getUser && getUser.isOnboarded ? (
+          <>
+            <CardHeader>
+              <CardTitle className="text-xl sm:text-2xl">Join an Event</CardTitle>
+              <CardDescription>Enter your invite code to join an event</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="inviteCode">Invite Code</Label>
+                  <Input
+                    id="inviteCode"
+                    placeholder="Enter your invite code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleJoinEvent} className="w-full">Join Event</Button>
+            </CardFooter>
+          </>
+        ) : (
+          <>
+            <CardHeader>
+              <CardTitle className="text-xl sm:text-2xl">Welcome to EventChat!</CardTitle>
+              <CardDescription>Let's set up your profile</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="bio">Bio</Label>
+                  <Textarea
+                    id="bio"
+                    placeholder="Tell us about yourself"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    className="min-h-[100px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interests">Interests</Label>
+                  <Input
+                    id="interests"
+                    placeholder="e.g. coding, music, travel (comma-separated)"
+                    value={interests}
+                    onChange={(e) => setInterests(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                onClick={handleFinishOnboarding}
+                className="w-full"
+              >
+                Finish Setup
+              </Button>
+            </CardFooter>
+          </>
+        )}
       </Card>
     </div>
   );
