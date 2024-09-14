@@ -12,19 +12,20 @@ import { Check, CheckCheck, Send, MessageCircle, Plus, Calendar } from 'lucide-r
 import { format } from 'date-fns';
 import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Add these interfaces at the top of your file
 interface Event {
-    _id: Id<"events">;
-    name: string;
-    // ... other properties
-  }
-  interface Meetup {
-    _id: Id<"meetups">;
-    name: string;
-    // ... other properties
-  }
-  
+  _id: Id<"events">;
+  name: string;
+  // ... other properties
+}
+
+interface Meetup {
+  _id: Id<"meetups">;
+  name: string;
+  // ... other properties
+}
+
 export default function Dashboard() {
   const { user } = useUser();
   const { toast } = useToast();
@@ -47,8 +48,11 @@ export default function Dashboard() {
   const [newMeetupDescription, setNewMeetupDescription] = useState('');
   const [newMessage, setNewMessage] = useState('');
 
+  const personalMeetups = useQuery(api.userFunctions.getPersonalMeetupsByEventId, 
+    selectedEvent && user ? { eventId: selectedEvent._id,  } : "skip"
+  );
 
-  const meetups = useQuery(api.userFunctions.getMeetupsByEventId, 
+  const globalMeetups = useQuery(api.userFunctions.getGlobalMeetupsByEventId, 
     selectedEvent ? { eventId: selectedEvent._id } : "skip"
   );
 
@@ -142,7 +146,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleSendMessage = async (e:any) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newMessage.trim() && getMeetupChatId && user) {
       try {
@@ -152,7 +156,6 @@ export default function Dashboard() {
           meetupChatId: getMeetupChatId,
         });
         setNewMessage('');
-        // Scroll to bottom after sending a message
         setTimeout(() => {
           if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -163,7 +166,8 @@ export default function Dashboard() {
       }
     }
   };
-  const MessageStatus = ({ message }:any) => {
+
+  const MessageStatus = ({ message }: { message: any }) => {
     if (message.senderId === user?.id) {
       if (message.readAt) {
         return <CheckCheck className="text-blue-500" size={16} />;
@@ -194,17 +198,40 @@ export default function Dashboard() {
                 <Calendar className="mr-2 h-4 w-4" />
                 {event.name}
               </Button>
-              {event._id === selectedEvent?._id && meetups?.map((meetup) => (
-                <Button
-                  key={meetup._id}
-                  variant={meetup._id === selectedMeetup?._id ? "secondary" : "ghost"}
-                  className="w-full justify-start pl-8 text-left mt-1"
-                  onClick={() => setSelectedMeetup(meetup)}
-                >
-                  <MessageCircle className="mr-2 h-4 w-4" />
-                  {meetup.name}
-                </Button>
-              ))}
+              {event._id === selectedEvent?._id && (
+                <Tabs defaultValue="personal" className="w-full mt-2">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="personal" className="w-1/2">Personal</TabsTrigger>
+                    <TabsTrigger value="global" className="w-1/2">Global</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="personal">
+                    {personalMeetups?.map((meetup) => (
+                      <Button
+                        key={meetup._id}
+                        variant={meetup._id === selectedMeetup?._id ? "secondary" : "ghost"}
+                        className="w-full justify-start pl-8 text-left mt-1"
+                        onClick={() => setSelectedMeetup(meetup)}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        {meetup.name}
+                      </Button>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="global">
+                    {globalMeetups?.map((meetup) => (
+                      <Button
+                        key={meetup._id}
+                        variant={meetup._id === selectedMeetup?._id ? "secondary" : "ghost"}
+                        className="w-full justify-start pl-8 text-left mt-1"
+                        onClick={() => setSelectedMeetup(meetup)}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        {meetup.name}
+                      </Button>
+                    ))}
+                  </TabsContent>
+                </Tabs>
+              )}
             </div>
           ))}
         </ScrollArea>
@@ -320,7 +347,7 @@ export default function Dashboard() {
                       <Button onClick={handleCreateMeetup}>Create Meetup</Button>
                     </div>
                   </DialogContent>
-                </Dialog>
+                  </Dialog>
               ) : (
                 <p className="text-gray-500">Select an event to view meetups or create a new one</p>
               )}

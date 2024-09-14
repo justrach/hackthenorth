@@ -38,7 +38,7 @@ export default defineSchema({
     meetupTime: v.string(),
     location: v.string(),
     creatorId: v.id("users"),
-    participantIds: v.array(v.id("users")),
+    participantIds: v.array(v.string()),  // Change this line
     status: v.string(),
     createdAt: v.string(),
     maxParticipants: v.optional(v.number()),
@@ -48,7 +48,7 @@ export default defineSchema({
     meetupId: v.id("meetups"),
     name: v.string(),
     description: v.optional(v.string()),
-    participantIds: v.array(v.id("users")),
+    participantIds: v.array(v.string()), 
     createdAt: v.string(),
     lastMessageAt: v.string(),
   }).index("by_meetupId", ["meetupId"]),
@@ -62,7 +62,7 @@ export default defineSchema({
 
   messageStatuses: defineTable({
     messageId: v.id("messages"),
-    userId: v.id("users"),
+    userId: v.string(),
     deliveredAt: v.union(v.string(), v.null()),
     readAt: v.union(v.string(), v.null()),
   }),

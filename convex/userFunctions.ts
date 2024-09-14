@@ -259,6 +259,58 @@ export const getUserProfiles = query({
     }));
   },
 });
+// ... existing code ...
+
+export const getPersonalMeetupsByEventId = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("id"), identity.tokenIdentifier))
+      .first();
+    
+    if (!user) throw new Error("User not found");
+
+    return await ctx.db
+      .query("meetups")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("eventId"), args.eventId),
+          q.eq(q.field("participantIds"), [user.user_id])
+        )
+      )
+      .collect();
+  },
+});
+
+export const getGlobalMeetupsByEventId = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("id"), identity.tokenIdentifier))
+      .first();
+    
+    if (!user) throw new Error("User not found");
+
+    return await ctx.db
+      .query("meetups")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("eventId"), args.eventId),
+          q.neq(q.field("participantIds"), [user.user_id])
+        )
+      )
+      .collect();
+  },
+});
+// ... existing code ...
 export const joinEventWithCode = mutation({
   args: { inviteCode: v.string() },
   handler: async (ctx, args) => {
