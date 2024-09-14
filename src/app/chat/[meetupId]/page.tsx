@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import LoggedInPage from "./(loggedin)/loggedInClient";
 import { SignInButton } from "@clerk/nextjs";
-import NewUserOnboarding from "./(loggedin)/loggedInUser";
+import ChatPage from "./chatClient";
 
 export default function Home() {
     const { userId } = auth();
@@ -9,7 +8,7 @@ export default function Home() {
     console.log(user.userId);
 
     if (userId) {
-        return <NewUserOnboarding userId={userId} />;
+        return <ChatPage userId={userId} />;
     }
 
     return (
