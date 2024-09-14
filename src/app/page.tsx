@@ -1,20 +1,26 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
+import LoggedInPage from "./(loggedin)/loggedInClient";
+import { SignInButton } from "@clerk/nextjs";
+import NewUserOnboarding from "./(loggedin)/loggedInUser";
+
 export default function Home() {
+    const { userId } = auth();
     const user = auth();
-    // have clerk server functions here
-    if(user.userId) {
-        return (
-            <div>
-                <h1>Hello, world! You are signed in as {user.userId}</h1>
-                <p>Welcome to your new Convex app!</p>
-            </div>
-        );
+    console.log(user.userId);
+
+    if (userId) {
+        return <NewUserOnboarding userId={userId} />;
     }
+
     return (
         <div>
-            <h1>Hello, world!</h1>  
-            <p>Welcome to your new Convex app!</p>
+            <h1>Welcome to our app!</h1>
+            <p>Please sign in to continue.</p>
+            <SignInButton mode="modal">
+                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    Sign In
+                </button>
+            </SignInButton>
         </div>
-        
     );
 }
