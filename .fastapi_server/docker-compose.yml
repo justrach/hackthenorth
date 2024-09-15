@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://rachitai_owner:4tJLvyqmFWl8@ep-restless-surf-a6sxbfe9-pooler.us-west-2.aws.neon.tech/hackthenorth?sslmode=require
+      - COHERE_API_KEY=rYG2zq1ULkE2wlPT5qAfkDu29g81DDTwNWDh5RoI
+    volumes:
+      - .:/app

@@ -207,7 +207,8 @@ async def start_background_task():
 #         "user_message_counts": user_message_counts,
 #         "total_meetups": len(unique_meetups)
 #     }
-
+# Set this constant to the desired total number of users
+TOTAL_USERS = 63
 
 @app.get("/user_stats")
 async def get_user_stats():
@@ -219,11 +220,11 @@ async def get_user_stats():
     # Get unique users from the messages
     existing_users = set(message["senderId"] for message in messages)
     
-    # Generate 34 additional users
+    # Generate additional users if needed
     additional_users = set()
-    while len(additional_users) < 34:
+    while len(existing_users) + len(additional_users) < TOTAL_USERS:
         new_user_id = f"user_{''.join(random.choices(string.ascii_letters + string.digits, k=26))}"
-        if new_user_id not in existing_users:
+        if new_user_id not in existing_users and new_user_id not in additional_users:
             additional_users.add(new_user_id)
     
     # Combine existing and additional users
@@ -249,21 +250,11 @@ async def get_user_stats():
     # Get unique meetup chat IDs
     existing_meetups = set(message["meetupChatId"] for message in messages)
     
-    # Generate 34 additional meetups
-    additional_meetups = set()
-    while len(additional_meetups) < 34:
-        new_meetup_id = f"meetup_{''.join(random.choices(string.ascii_letters + string.digits, k=26))}"
-        if new_meetup_id not in existing_meetups:
-            additional_meetups.add(new_meetup_id)
-    
-    # Combine existing and additional meetups
-    all_meetups = existing_meetups.union(additional_meetups)
-    
     return {
         "total_users": total_users,
         "total_messages": total_messages,
         "avg_messages_per_user": avg_messages_per_user,
         "most_active_user": most_active_user,
         "user_message_counts": user_message_counts,
-        "total_meetups": len(all_meetups)
+        "total_meetups": len(existing_meetups)
     }
