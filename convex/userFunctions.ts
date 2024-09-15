@@ -86,7 +86,98 @@ export const list = query({
 //     }));
 //   },
 // });
+export const getMeetupDetails = query({
+  args: { meetupId: v.id("meetups") },
+  handler: async (ctx, args) => {
+    const meetup = await ctx.db.get(args.meetupId);
+    if (!meetup) throw new Error("Meetup not found");
 
+    let location = null;
+    if (meetup.locationId) {
+      const locationData = await ctx.db.get(meetup.locationId);
+      if (locationData) {
+        location = {
+          name: locationData.name,
+          url: locationData.url,
+        };
+      }
+    }
+
+    return {
+      _id: meetup._id,
+      name: meetup.name,
+      description: meetup.description,
+      meetupTime: meetup.meetupTime,
+      location: location,
+      creatorId: meetup.creatorId,
+      participantIds: meetup.participantIds,
+      status: meetup.status,
+      createdAt: meetup.createdAt,
+      maxParticipants: meetup.maxParticipants,
+      isPublic: meetup.isPublic,
+    };
+  },
+});
+export const createPairMeetup = mutation({
+  args: {
+    eventId: v.id("events"),
+    username1: v.string(),
+    username2: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    
+    const user1 = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", args.username1))
+      .first();
+    
+    const user2 = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", args.username2))
+      .first();
+    
+    if (!user1 || !user2) throw new Error("One or both users not found");
+    
+    const participantIds = [user1.user_id, user2.user_id];
+    
+    // Get all locations
+    const locations = await ctx.db.query("locations").collect();
+    if (locations.length === 0) throw new Error("No locations available");
+    
+    // Select a random location
+    const randomLocation = locations[Math.floor(Math.random() * locations.length)];
+    
+    const meetupId = await ctx.db.insert("meetups", {
+      eventId: args.eventId,
+      name: `${args.username1} and ${args.username2} Meetup`,
+      description: `A meetup between ${args.username1} and ${args.username2}`,
+      meetupTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Set to 24 hours from now
+      locationId: randomLocation._id,
+      creatorId: user1._id, // Assuming user1 is the creator
+      participantIds,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      maxParticipants: 2,
+      isPublic: false,
+      invitedUsernames: [args.username1, args.username2],
+      location: randomLocation.name, // Add the location name to the meetup
+    });
+
+    // Create meetup chat
+    await ctx.db.insert("meetupChats", {
+      meetupId,
+      name: `${args.username1} and ${args.username2} Chat`,
+      description: `Chat for the meetup between ${args.username1} and ${args.username2}`,
+      participantIds,
+      createdAt: new Date().toISOString(),
+      lastMessageAt: new Date().toISOString(),
+    });
+
+    return meetupId;
+  },
+});
 export const listUsersWithEmails = query({
   args: {},
   handler: async (ctx) => {
@@ -95,6 +186,7 @@ export const listUsersWithEmails = query({
       id: user._id,
       email: user.email,
       bio: user.bio,
+      username: user.username,
       interests: user.interests,
     }));
   },
@@ -384,7 +476,8 @@ export const createMeetup = mutation({
     name: v.string(),
     description: v.string(),
     meetupTime: v.string(),
-    location: v.string(),
+    locationName: v.string(),
+    locationUrl: v.optional(v.string()),
     maxParticipants: v.optional(v.number()),
     isPublic: v.boolean(),
     invitedUsernames: v.array(v.string()),
@@ -413,18 +506,31 @@ export const createMeetup = mutation({
       }
     }
     
+    // Create the location
+    const locationId = await ctx.db.insert("locations", {
+      name: args.locationName,
+      url: args.locationUrl,
+    });
+    
     const meetupId = await ctx.db.insert("meetups", {
-      ...args,
+      eventId: args.eventId,
+      name: args.name,
+      description: args.description,
+      meetupTime: args.meetupTime,
+      locationId,
       creatorId: user._id,
       participantIds,
       status: "pending",
       createdAt: new Date().toISOString(),
+      maxParticipants: args.maxParticipants,
+      isPublic: args.isPublic,
+      invitedUsernames: args.invitedUsernames,
     });
 
     // Create meetup chat
     await ctx.db.insert("meetupChats", {
       meetupId,
-      name: args.name, // Use the same name as the meetup
+      name: args.name,
       description: args.description,
       participantIds,
       createdAt: new Date().toISOString(),

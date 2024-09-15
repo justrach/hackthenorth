@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Check, CheckCheck, Send, MessageCircle, Plus, Calendar, Menu, ArrowLeft } from 'lucide-react';
+import { Check, CheckCheck, Send, MessageCircle, Plus, Calendar, Menu, ArrowLeft, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { Id } from '@/convex/_generated/dataModel';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -63,6 +63,10 @@ export default function DashboardPage({ userId }: { userId: string }) {
 
   const getChatMessages = useQuery(api.userFunctions.getMeetupChatMessages, 
     isAuthenticated && getMeetupChatId ? { meetupChatId: getMeetupChatId } : "skip"
+  );
+
+  const getMeetupDetails = useQuery(api.userFunctions.getMeetupDetails, 
+    isAuthenticated && selectedMeetup ? { meetupId: selectedMeetup._id } : "skip"
   );
 
   useEffect(() => {
@@ -184,7 +188,7 @@ export default function DashboardPage({ userId }: { userId: string }) {
         name: newMeetupName,
         description: newMeetupDescription,
         meetupTime: new Date().toISOString(),
-        location: "TBD",
+        locationName: "TBD",
         isPublic: false,
         invitedUsernames: [],
       });
@@ -222,7 +226,6 @@ export default function DashboardPage({ userId }: { userId: string }) {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
-      {/* Header */}
       <div className="bg-white p-4 flex justify-between items-center border-b border-gray-200">
         <h1 className="text-xl font-bold">Dashboard</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}>
@@ -230,9 +233,7 @@ export default function DashboardPage({ userId }: { userId: string }) {
         </Button>
       </div>
 
-      {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Side Panel */}
         <div className={`bg-white border-r border-gray-200 flex flex-col ${isMobile ? (isSidePanelOpen ? 'fixed inset-y-0 left-0 z-50 w-64' : 'hidden') : 'w-1/4'}`}>
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-xl font-semibold">Events & Meetups</h2>
@@ -324,12 +325,22 @@ export default function DashboardPage({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="p-4 bg-white border-b border-gray-200">
             <h2 className="text-2xl font-bold">
               {selectedMeetup ? `${selectedMeetup.name} Chat` : (selectedEvent ? selectedEvent.name : 'Select an Event or Meetup')}
             </h2>
+            {selectedMeetup && getMeetupDetails?.location && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => getMeetupDetails?.location?.url && window.open(getMeetupDetails.location.url, '_blank')}
+              >
+                <MapPin className="mr-2 h-4 w-4" />
+                {getMeetupDetails?.location?.name}
+              </Button>
+            )}
           </div>
           <div className="flex-1 overflow-hidden flex flex-col">
             {selectedMeetup ? (
@@ -351,74 +362,74 @@ export default function DashboardPage({ userId }: { userId: string }) {
                           <div className={`rounded-lg p-3 ${message.senderId === user.id ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200'}`}>
                             {message.senderId !== user.id && (
                               <p className="text-xs font-semibold mb-1 text-gray-600">
-                              {userProfiles?.find(profile => profile.user_id === message.senderId)?.username || 'Unknown User'}
-                            </p>
-                          )}
-                          <p className={`text-sm ${message.senderId === user.id ? 'text-white' : 'text-gray-800'}`}>{message.content}</p>
-                        </div>
-                        <div className={`flex items-center mt-1 space-x-2 ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <p className="text-xs text-gray-500">{format(new Date(message.timestamp), 'HH:mm')}</p>
-                          <MessageStatus message={message} />
+                                {userProfiles?.find(profile => profile.user_id === message.senderId)?.username || 'Unknown User'}
+                              </p>
+                            )}
+                            <p className={`text-sm ${message.senderId === user.id ? 'text-white' : 'text-gray-800'}`}>{message.content}</p>
+                          </div>
+                          <div className={`flex items-center mt-1 space-x-2 ${message.senderId === user.id ? 'flex-row-reverse' : 'flex-row'}`}>
+                            <p className="text-xs text-gray-500">{format(new Date(message.timestamp), 'HH:mm')}</p>
+                            <MessageStatus message={message} />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </ScrollArea>
-              <div className="p-4 bg-white border-t border-gray-200">
-                <form onSubmit={handleSendMessage} className="flex space-x-2">
-                  <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" size="icon">
-                    <Send size={18} />
-                  </Button>
-                </form>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </ScrollArea>
+                <div className="p-4 bg-white border-t border-gray-200">
+                  <form onSubmit={handleSendMessage} className="flex space-x-2">
+                    <Input
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button type="submit" size="icon">
+                      <Send size={18} />
+                    </Button>
+                  </form>
+                </div>
+              </>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                {selectedEvent ? (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button><Plus className="mr-2" />Create Meetup</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create a New Meetup</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label htmlFor="meetupName">Meetup Name</label>
+                          <Input
+                            id="meetupName"
+                            value={newMeetupName}
+                            onChange={(e) => setNewMeetupName(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label htmlFor="meetupDescription">Meetup Description</label>
+                          <Input
+                            id="meetupDescription"
+                            value={newMeetupDescription}
+                            onChange={(e) => setNewMeetupDescription(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                ) : (
+                  <p className="text-gray-500">Select an event to view meetups or create a new one</p>
+                )}
               </div>
-            </>
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              {selectedEvent ? (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button><Plus className="mr-2" />Create Meetup</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create a New Meetup</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label htmlFor="meetupName">Meetup Name</label>
-                        <Input
-                          id="meetupName"
-                          value={newMeetupName}
-                          onChange={(e) => setNewMeetupName(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label htmlFor="meetupDescription">Meetup Description</label>
-                        <Input
-                          id="meetupDescription"
-                          value={newMeetupDescription}
-                          onChange={(e) => setNewMeetupDescription(e.target.value)}
-                        />
-                      </div>
-                      <Button onClick={handleCreateMeetup}>Create Meetup</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              ) : (
-                <p className="text-gray-500">Select an event to view meetups or create a new one</p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
