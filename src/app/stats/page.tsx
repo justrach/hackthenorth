@@ -87,7 +87,7 @@ export default function StatsPage() {
                 <dd className="mt-1 text-3xl font-semibold">{stats.total_users}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Total Meetups</dt>
+                <dt className="text-sm font-medium text-gray-500">Total (LIVE) Meetups</dt>
                 <dd className="mt-1 text-3xl font-semibold">{stats.total_meetups}</dd>
               </div>
               <div>
