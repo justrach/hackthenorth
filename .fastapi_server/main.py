@@ -12,6 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from chromadb.api.types import Documents, Embeddings
 import httpx
+import chromadb
+from chromadb.utils import embedding_functions
 app = FastAPI()
 
 # Database setup
@@ -58,11 +60,19 @@ async def compare_profiles(
 ):
     db = SessionLocal()
     try:
-        # Combine bios and interests
-        combined_profiles = [f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}" for profile in profiles]
+        # Use Cohere's chat model to enhance user profiles
+        enhanced_profiles = []
+        for profile in profiles:
+            chat_response = co.chat(
+                chat_history=[],
+                message=f"Analyze this user profile and provide a brief summary highlighting key interests and characteristics: Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}",
+                connectors=[{"id": "web-search"}],
+            )
+            enhanced_profile = f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}\nAnalysis: {chat_response.text}"
+            enhanced_profiles.append(enhanced_profile)
         
-        # Generate embeddings
-        response = co.embed(texts=combined_profiles, model="embed-english-v3.0", input_type="classification")
+        # Generate embeddings for enhanced profiles
+        response = co.embed(texts=enhanced_profiles, model="embed-english-v3.0", input_type="classification")
         embeddings = response.embeddings
         
         # Calculate distances between embeddings
@@ -80,12 +90,11 @@ async def compare_profiles(
         sorted_distances = sorted(distances, key=lambda x: x['distance'])
         
         return {
-            "profiles": [{"id": profile.id, "profile": combined_profile} for profile, combined_profile in zip(profiles, combined_profiles)],
+            "profiles": [{"id": profile.id, "profile": enhanced_profile} for profile, enhanced_profile in zip(profiles, enhanced_profiles)],
             "distances": sorted_distances
         }
     finally:
         db.close()
-
 @app.post("/add_user")
 async def add_user(profile: UserProfile):
     db = SessionLocal()
@@ -109,39 +118,63 @@ async def find_furthest_pair(
 ):
     db = SessionLocal()
     try:
-        # Combine bios and interests
-        combined_profiles = [f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}" for profile in profiles]
+        # Initialize Chroma client
+        chroma_client = chromadb.Client()
         
-        # Generate embeddings
-        response = co.embed(texts=combined_profiles, model="embed-english-v3.0", input_type="classification")
-        embeddings = response.embeddings
+        # Delete the existing collection if it exists
+        try:
+            chroma_client.delete_collection(name="user_profiles")
+        except ValueError:
+            # Collection doesn't exist, which is fine
+            pass
         
-        # Calculate distances between all pairs
-        distances = {}
-        for i in range(len(embeddings)):
-            for j in range(i+1, len(embeddings)):
-                distance = np.linalg.norm(np.array(embeddings[i]) - np.array(embeddings[j]))
-                distances[(profiles[i].username, profiles[j].username)] = distance
+        # Create a new collection
+        collection = chroma_client.create_collection(name="user_profiles")
         
-        # Sort distances
-        sorted_distances = sorted(distances.items(), key=lambda x: x[1], reverse=True)
+        # Initialize Cohere embedding function
+        cohere_ef = embedding_functions.CohereEmbeddingFunction(api_key="your_cohere_api_key")
         
-        # Create pairs maximizing diversity
+        # Combine bios and interests and add to Chroma
+        for profile in profiles:
+            combined_profile = f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}"
+            collection.add(
+                documents=[combined_profile],
+                metadatas=[{"username": profile.username}],
+                ids=[profile.username]
+            )
+        
+        # Find pairs maximizing diversity
         paired_users = set()
         result = []
         
-        for (user1, user2), _ in sorted_distances:
-            if user1 not in paired_users and user2 not in paired_users:
-                result.append([user1, user2])
-                paired_users.add(user1)
-                paired_users.add(user2)
-            
-            if len(paired_users) == len(profiles):
+        while len(paired_users) < len(profiles):
+            unpaired = [p.username for p in profiles if p.username not in paired_users]
+            if not unpaired:
                 break
+            
+            user1 = unpaired[0]
+            query_results = collection.query(
+                query_texts=[collection.get(ids=[user1])["documents"][0]],
+                n_results=len(unpaired),
+                include=["metadatas"]
+            )
+            
+            for metadata in reversed(query_results["metadatas"][0]):
+                user2 = metadata["username"]
+                if user2 not in paired_users and user2 != user1:
+                    result.append([user1, user2])
+                    paired_users.add(user1)
+                    paired_users.add(user2)
+                    break
+        
+        # Clean up: delete the collection
+        chroma_client.delete_collection("user_profiles")
         
         return result
     finally:
         db.close()
+
+
 
 async def fetch_api_data():
     async with httpx.AsyncClient() as client:
