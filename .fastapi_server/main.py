@@ -112,11 +112,56 @@ async def add_user(profile: UserProfile):
     finally:
         db.close()
 
+
+
+@app.post("/find_furthest_pair2")
+async def find_furthest_pair(
+    profiles: List[UserProfile] = Body(..., description="List of user profiles to compare")
+):
+    db = SessionLocal()
+    try:
+        # Combine bios and interests
+        combined_profiles = [f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}" for profile in profiles]
+        
+        # Generate embeddings
+        response = co.embed(texts=combined_profiles, model="embed-english-v3.0", input_type="classification")
+        embeddings = response.embeddings
+        
+        # Calculate distances between all pairs
+        distances = {}
+        for i in range(len(embeddings)):
+            for j in range(i+1, len(embeddings)):
+                distance = np.linalg.norm(np.array(embeddings[i]) - np.array(embeddings[j]))
+                distances[(profiles[i].username, profiles[j].username)] = distance
+        
+        # Sort distances
+        sorted_distances = sorted(distances.items(), key=lambda x: x[1], reverse=True)
+        
+        # Create pairs maximizing diversity
+        paired_users = set()
+        result = []
+        
+        for (user1, user2), _ in sorted_distances:
+            if user1 not in paired_users and user2 not in paired_users:
+                result.append([user1, user2])
+                paired_users.add(user1)
+                paired_users.add(user2)
+            
+            if len(paired_users) == len(profiles):
+                break
+        
+        return result
+    finally:
+        db.close()
+
+
+
 @app.post("/find_furthest_pair")
 async def find_furthest_pair(
     profiles: List[UserProfile] = Body(..., description="List of user profiles to compare")
 ):
     db = SessionLocal()
+    print("Finding furthest pair")
     try:
         # Initialize Chroma client
         chroma_client = chromadb.Client()
@@ -132,7 +177,7 @@ async def find_furthest_pair(
         collection = chroma_client.create_collection(name="user_profiles")
         
         # Initialize Cohere embedding function
-        cohere_ef = embedding_functions.CohereEmbeddingFunction(api_key="your_cohere_api_key")
+        cohere_ef = embedding_functions.CohereEmbeddingFunction(api_key="rYG2zq1ULkE2wlPT5qAfkDu29g81DDTwNWDh5RoI")
         
         # Combine bios and interests and add to Chroma
         for profile in profiles:
