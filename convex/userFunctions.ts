@@ -86,6 +86,14 @@ export const list = query({
 //     }));
 //   },
 // });
+export const listEmails = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users.map((user) => user.email);
+  },
+});
+
 export const getMeetupDetails = query({
   args: { meetupId: v.id("meetups") },
   handler: async (ctx, args) => {
@@ -937,4 +945,40 @@ export const createMissingMessageStatuses = mutation({
 
     return "Migration completed";
   },
+});
+
+import { httpAction } from "./_generated/server";
+import { api } from "./_generated/api";
+
+
+
+// HTTP action for email
+export const getEmail = httpAction(async (ctx, request) => {
+  const email = await ctx.runQuery(api.userFunctions.listEmails);
+  return Response.json(email);
+});
+
+// HTTP action for list
+export const getList = httpAction(async (ctx, request) => {
+  const list = await ctx.runQuery(api.userFunctions.list);
+  return Response.json(list);
+});
+
+// HTTP action for emailuserlist
+export const getEmailUserList = httpAction(async (ctx, request) => {
+  const emailUserList = await ctx.runQuery(api.userFunctions.listUsersWithEmails);
+  return Response.json(emailUserList);
+});
+
+
+export const getAllMessages = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("messages").collect();
+  },
+});
+
+// Add this new HTTP action
+export const getAllMessagesAction = httpAction(async (ctx, request) => {
+  const messages = await ctx.runQuery(api.userFunctions.getAllMessages);
+  return Response.json(messages);
 });
