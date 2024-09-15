@@ -1,21 +1,41 @@
-# Convex + TypeScript + Next.js + Clerk + Tailwind + shadcn/ui
+# Excus.us: Fostering Diverse Connections Across Tech Events
 
-This template provides a minimal setup to get Convex working with [Next.js](https://nextjs.org/). It uses [Clerk](https://clerk.dev/) for user authentication.
+## About Excus.us
 
-Start by editing `convex/myFunctions.ts` and interact with your Next.js app.
+Excus.us is an innovative networking app designed to transform how professionals connect at tech events such as conferences and hackathons. Our mission is to break down social barriers and encourage connections between individuals with complementary yet different skills, interests, and backgrounds.
 
-See Convex docs at https://docs.convex.dev/home
+## Key Features
 
-## Setting up
+- **Cross-Event Persistence**: Build a comprehensive profile and network over time across multiple events.
+- **AI-Assisted Diverse Matching**: Connect with participants who have different backgrounds and complementary skills.
+- **Real-Time Event Navigation**: Easily locate and meet your matches at crowded venues.
+- **Continuous Learning**: Our app refines its matching process based on user interactions and feedback.
 
-```
-npm create convex@latest -t nextjs-clerk-shadcn
-```
+## Technologies Used
 
-Then:
+- **Cohere's Embedding Model with R+**: For creating embeddings and assisting with translation
+- **Groq**: Quick reranking for efficient diverse matching
+- **ChromaDB**: Vector database for efficient profile matching
+- **Mappedin**: Real-time navigation within event venues
+- **Next.js**: Responsive and intuitive user interface
+- **FastAPI + Defang**: Backend operations and API calls
+- **Convex**: Real-time chat and persistent user data management
+- **Posthog & Databricks**: User behavior and app performance analysis
+- **Flutter**: Admin mobile app
+- **Cloudflare Workers**: Efficient email communications (with Resend)
 
-1. Follow steps 1 to 3 in the [Clerk onboarding guide](https://docs.convex.dev/auth/clerk#get-started)
-2. Paste the Issuer URL as `CLERK_JWT_ISSUER_DOMAIN` to your dev deployment environment variable settings on the Convex dashboard (see [docs](https://docs.convex.dev/auth/clerk#configuring-dev-and-prod-instances))
-3. Paste your publishable key as `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="<your publishable key>"` to the `.env.local` file in this directory.
+## Getting Started
 
-If you want to sync Clerk user data via webhooks, check out this [example repo](https://github.com/thomasballinger/convex-clerk-users-table/).
+(Add instructions for setting up the project locally)
+
+## Contributing
+
+We welcome contributions to Excus.us! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## Future Roadmap
+
+1. Enhanced AI assistance for suggesting relevant diverse connections
+2. Virtual and hybrid event support
+3. Diversity impact metrics
+4. Expanded multilingual support
+
