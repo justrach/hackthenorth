@@ -10,7 +10,7 @@ export default function Home() {
     console.log(user.userId);
 
     if (userId) {
-        return <NewUserOnboarding userId={userId} />;
+        return <LoggedInPage userId={userId} />;
     }
 
     return <LandingPage />;
