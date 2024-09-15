@@ -188,7 +188,7 @@ export default function DashboardPage({ userId }: { userId: string }) {
         name: newMeetupName,
         description: newMeetupDescription,
         meetupTime: new Date().toISOString(),
-        location: "TBD",
+        locationName: "TBD",
         isPublic: false,
         invitedUsernames: [],
       });
