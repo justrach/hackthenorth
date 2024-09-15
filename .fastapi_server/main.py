@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from chromadb.api.types import Documents, Embeddings
 import httpx
+from groq import Groq
 import chromadb
 from chromadb.utils import embedding_functions
 app = FastAPI()
@@ -112,7 +113,73 @@ async def add_user(profile: UserProfile):
     finally:
         db.close()
 
+groq_client = Groq(
+    api_key="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"
+)
 
+@app.post("/find_furthest_pair3")
+async def find_furthest_pair(
+    profiles: List[UserProfile] = Body(..., description="List of user profiles to compare")
+):
+    db = SessionLocal()
+    try:
+        # Combine bios and interests
+        combined_profiles = [f"Bio: {profile.bio}\nInterests: {', '.join(profile.interests)}" for profile in profiles]
+        
+        # Try Cohere first, fall back to Groq if it takes too long
+        try:
+            embeddings = await asyncio.wait_for(generate_cohere_embeddings(combined_profiles), timeout=10.0)
+        except asyncio.TimeoutError:
+            print("Cohere timed out, falling back to Groq")
+            embeddings = await generate_groq_embeddings(combined_profiles)
+        
+        # Calculate distances between all pairs
+        distances = {}
+        for i in range(len(embeddings)):
+            for j in range(i+1, len(embeddings)):
+                distance = np.linalg.norm(np.array(embeddings[i]) - np.array(embeddings[j]))
+                distances[(profiles[i].username, profiles[j].username)] = distance
+        
+        # Sort distances
+        sorted_distances = sorted(distances.items(), key=lambda x: x[1], reverse=True)
+        
+        # Create pairs maximizing diversity
+        paired_users = set()
+        result = []
+        
+        for (user1, user2), _ in sorted_distances:
+            if user1 not in paired_users and user2 not in paired_users:
+                result.append([user1, user2])
+                paired_users.add(user1)
+                paired_users.add(user2)
+            
+            if len(paired_users) == len(profiles):
+                break
+        
+        return result
+    finally:
+        db.close()
+
+async def generate_cohere_embeddings(texts):
+    response = co.embed(texts=texts, model="embed-english-v3.0", input_type="classification")
+    return response.embeddings
+
+async def generate_groq_embeddings(texts):
+    embeddings = []
+    for text in texts:
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "You are an embedding generator. Generate a numerical representation of the following text as a comma-separated list of 1024 floating-point numbers."},
+                {"role": "user", "content": text}
+            ],
+            model="llama3-8b-8192",
+            temperature=0.5,
+            max_tokens=2048,
+        )
+        embedding_str = chat_completion.choices[0].message.content
+        embedding = [float(x) for x in embedding_str.split(',')]
+        embeddings.append(embedding)
+    return embeddings
 
 @app.post("/find_furthest_pair2")
 async def find_furthest_pair(
