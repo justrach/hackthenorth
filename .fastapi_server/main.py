@@ -45,6 +45,7 @@ collection = chroma_client.create_collection(name="user_profiles", embedding_fun
 class UserProfile(BaseModel):
     bio: str
     email: str
+    username: str
     id: str
     interests: List[str]
 
@@ -117,7 +118,7 @@ async def find_furthest_pair(
         for i in range(len(embeddings)):
             for j in range(i+1, len(embeddings)):
                 distance = np.linalg.norm(np.array(embeddings[i]) - np.array(embeddings[j]))
-                distances[(profiles[i].id, profiles[j].id)] = distance
+                distances[(profiles[i].username, profiles[j].username)] = distance
         
         # Sort distances
         sorted_distances = sorted(distances.items(), key=lambda x: x[1], reverse=True)
@@ -138,3 +139,4 @@ async def find_furthest_pair(
         return result
     finally:
         db.close()
+

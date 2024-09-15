@@ -30,6 +30,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
   const createEvent = useMutation(api.userFunctions.createEvent);
   const createMeetup = useMutation(api.userFunctions.createMeetup);
   const getUserEvents = useQuery(api.userFunctions.getUserEvents, isAuthenticated ? undefined : "skip");
+  const createPairMeetups = useMutation(api.userFunctions.createPairMeetup);
 
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [bio, setBio] = useState('');
@@ -44,6 +45,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
   const [newMeetupMaxParticipants, setNewMeetupMaxParticipants] = useState('');
   const [newMeetupIsPublic, setNewMeetupIsPublic] = useState(false);
   const [newMeetupInvitedUsernames, setNewMeetupInvitedUsernames] = useState('');
+  const [pairMeetupsList, setPairMeetupsList] = useState('');
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -120,7 +122,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
         name: newMeetupName,
         description: newMeetupDescription,
         meetupTime: newMeetupTime,
-        location: newMeetupLocation,
+        locationName: newMeetupLocation,
         maxParticipants: newMeetupMaxParticipants ? parseInt(newMeetupMaxParticipants) : undefined,
         isPublic: newMeetupIsPublic,
         invitedUsernames: newMeetupInvitedUsernames.split(',').map(username => username.trim()),
@@ -138,6 +140,27 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
     } catch (error) {
       console.error('Error creating meetup:', error);
       alert(`Error creating meetup: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleCreatePairMeetups = async () => {
+    if (!selectedEventId) {
+      alert("Please select an event first");
+      return;
+    }
+  
+    const pairs = pairMeetupsList.split('\n').map(line => line.split(',').map(username => username.trim()));
+    
+    try {
+      const results = await Promise.all(pairs.map(([username1, username2]) => 
+        createPairMeetups({ eventId: selectedEventId, username1, username2 })
+      ));
+      const totalCreated = results.reduce((sum, result) => sum + result.length, 0);
+      alert(`Created ${totalCreated} pair meetups successfully!`);
+      setPairMeetupsList('');
+    } catch (error) {
+      console.error('Error creating pair meetups:', error);
+      alert(`Error creating pair meetups: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -189,6 +212,7 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
         <TabsList>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="meetups">Meetups</TabsTrigger>
+          <TabsTrigger value="matcher">Matcher</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
 
@@ -357,16 +381,42 @@ export default function LoggedInPage({ userId }: LoggedInPageProps) {
                         id="invitedUsernames"
                         value={newMeetupInvitedUsernames}
                         onChange={(e) => setNewMeetupInvitedUsernames(e.target.value)}
-                        placeholder="Comma-separated usernames"
-                        className="col-span-3"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={handleCreateMeetup}>Create Meetup</Button>
-                  </DialogFooter>
-                </DialogContent>
+        placeholder="Comma-separated usernames"
+        className="col-span-3"
+      />
+    </div>
+  </div>
+  <DialogFooter>
+    <Button onClick={handleCreateMeetup}>Create Meetup</Button>
+  </DialogFooter>
+</DialogContent>
               </Dialog>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="matcher">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pair Matcher</CardTitle>
+              <CardDescription>Create meetups for pairs of users</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pairMeetupsList">User Pairs (one pair per line, comma-separated)</Label>
+                  <Textarea
+                    id="pairMeetupsList"
+                    placeholder="user1,user2&#10;user3,user4"
+                    value={pairMeetupsList}
+                    onChange={(e) => setPairMeetupsList(e.target.value)}
+                    rows={10}
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleCreatePairMeetups} disabled={!selectedEventId}>Create Pair Meetups</Button>
             </CardFooter>
           </Card>
         </TabsContent>
